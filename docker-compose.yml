@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: raylabs_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: raylabs
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppassword
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./init_test.sql:/docker-entrypoint-initdb.d/init_test.sql:ro
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: raylabs_rabbitmq
+    restart: always
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  api:
+    build: .
+    container_name: raylabs_api
+    restart: always
+    depends_on:
+      - postgres
+      - rabbitmq
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: appuser
+      DB_PASSWORD: apppassword
+      DB_NAME: raylabs
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      JWT_SECRET: supersecret
+    ports:
+      - '3000:3000'
+    command: sh -c "sleep 10 && node dist/api/index.js"
+
+  payment-service:
+    build: .
+    container_name: raylabs_payment
+    restart: always
+    depends_on:
+      - rabbitmq
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: appuser
+      DB_PASSWORD: apppassword
+      DB_NAME: raylabs
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    command: sh -c "sleep 10 && node dist/payment/index.js"
+
+  inventory-service:
+    build: .
+    container_name: raylabs_inventory
+    restart: always
+    depends_on:
+      - postgres
+      - rabbitmq
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: appuser
+      DB_PASSWORD: apppassword
+      DB_NAME: raylabs
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    command: sh -c "sleep 10 && node dist/inventory/index.js"
+
+  outbox-service:
+    build: .
+    container_name: raylabs_outbox
+    restart: always
+    depends_on:
+      - postgres
+      - rabbitmq
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: appuser
+      DB_PASSWORD: apppassword
+      DB_NAME: raylabs
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    command: sh -c "sleep 10 && node dist/outbox/index.js"
+
+volumes:
+  pgdata:

@@ -1,0 +1,1 @@
+CREATE DATABASE raylabs_test;
